@@ -7,11 +7,11 @@ I found myself essentially writing the same code over and over for talking to ur
 
 # FAQ
 
-## Why does this not meet <insert some Python coding standard here>?
+## Why does this not meet insert some Python coding standard here?
 
 I am not a super coder. My tasks are usually slapping something together to do a job in the short term or creating a proof of concept that can be handed off to someone infinitely more talented than myself to make into better code. Having said that, I am learning how to write better code, and feedback or PRs on this to point me in the right direction are very much appreciated.
 
-## Why does this not have <insert some urlscan.io Pro API call here>?
+## Why does this not have insert some urlscan.io Pro API call here?
 
 In keeping with the urlscan.io terms that request not to divulge the Pro account features publicly, I have not added them to this very basic class. I do, however, have a "Pro Basic" class that does extend this class with the Pro calls and can provide some feedback on how it can be done if requested.
 
@@ -39,6 +39,7 @@ The class has some very basic arguments that you don't need to provide for it to
 # Really simple usage
 
 ```python
+from base import BaseUrlscan
 urlscan = BaseUrlscan()
 urlscan_quota = urlscan.get_quotas()
 urlscan_result = urlscan.get_result(result_uuid='0195e0c6-af9a-7000-997c-0e0c32811406')
