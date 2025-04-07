@@ -77,7 +77,7 @@ class BaseUrlscan:
         backoff: int = 1,
     ):
         """
-        Init the base class. You must provide an API key for this class to work
+        Init the base class. You don't need to provide an API key but it is recommended to do so
 
         You should also set a useragent unique to your application e.g BobSecurityScanner/v1
         """
