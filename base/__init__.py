@@ -1,15 +1,15 @@
 import logging
+from typing import Any, Optional
+from uuid import UUID
 import requests
 from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-import json
+from urllib3.util.retry import Retry
 
-from .exceptions import UrlscanInvalidPayload
 
 logger = logging.getLogger(__name__)
 
-def urlscan_session(retries=5, backoff=1):
 
+def urlscan_session(retries: int = 5, backoff: int = 1) -> requests.Session:
     """
     This function creates a new requests session object that is capable of retrying requests for urlscan.io
 
@@ -18,7 +18,7 @@ def urlscan_session(retries=5, backoff=1):
     Adjust retries and backoff as needed for your setup. Backoff will exponentially increase the time between retries and is in seconds
     """
 
-    STATUSES=[429, 500, 502, 503, 504]
+    STATUSES = [429, 500, 502, 503, 504]
 
     # Define our strategy
     strategy = Retry(
@@ -29,17 +29,16 @@ def urlscan_session(retries=5, backoff=1):
 
     # Create an adapter using that strategy
     adapter = HTTPAdapter(max_retries=strategy)
- 
+
     # Initialise a standard requests session object
     session = requests.Session()
     # Only ever connect to urlscan.io over HTTPS but now using the adapter with our retry strategy
-    session.mount('https://', adapter)
+    session.mount("https://", adapter)
 
     return session
 
 
 class BaseUrlscan:
-
     """
     Base class for handling interactions with the urlscan.io API.
 
@@ -58,20 +57,25 @@ class BaseUrlscan:
     """
 
     # The domain for urlscan.io - in theory should never change but just in case
-    URLSCAN_DOMAIN = 'urlscan.io'
+    URLSCAN_DOMAIN = "urlscan.io"
 
     # Our base interaction urls
-    QUOTA_URL = f'https://{URLSCAN_DOMAIN}/user/quotas/'
-    API_URL = f'https://{URLSCAN_DOMAIN}/api/v1'
-    DOM_URL = f'https://{URLSCAN_DOMAIN}/dom'
-    SCREENSHOT_URL = f'https://{URLSCAN_DOMAIN}/screenshots'
-    RESPONSE_URL = f'https://{URLSCAN_DOMAIN}/responses'
+    QUOTA_URL = f"https://{URLSCAN_DOMAIN}/user/quotas/"
+    API_URL = f"https://{URLSCAN_DOMAIN}/api/v1"
+    DOM_URL = f"https://{URLSCAN_DOMAIN}/dom"
+    SCREENSHOT_URL = f"https://{URLSCAN_DOMAIN}/screenshots"
+    RESPONSE_URL = f"https://{URLSCAN_DOMAIN}/responses"
 
     # The currently valid visibilities (note the setting private or unlisted requires a pro urlscan.io account)
-    VISIBILITIES = ['public', 'private', 'unlisted']
-  
-    def __init__(self, api_key=None, user_agent=None, retries=5, backoff=1):
+    VISIBILITIES = ["public", "private", "unlisted"]
 
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        retries: int = 5,
+        backoff: int = 1,
+    ):
         """
         Init the base class. You must provide an API key for this class to work
 
@@ -79,50 +83,52 @@ class BaseUrlscan:
         """
 
         # We don't want to do anything if we don't have an API key
-        if not api_key:
-            logger.warning('No API key provided, this may limit some actions you can do with urslcan.io')
-        
+        if api_key is None:
+            logger.warning(
+                "No API key provided, this may limit some actions you can do with urslcan.io"
+            )
+
         # Set the user agent if none provided
-        if not user_agent:
-            user_agent = 'BasicUrlscanPy/v1'
-            logger.warning(f'No user agent provided, using default user agent: {user_agent}. It is recommended to set a custom user agent')
+        if user_agent is None:
+            user_agent = "BasicUrlscanPy/v1"
+            logger.warning(
+                f"No user agent provided, using default user agent: {user_agent}. It is recommended to set a custom user agent"
+            )
 
         # Our headers
         self.headers = {
             # Strictly speaking we don't need to set the content type to JSON on all requests
             # as the GET requests don't have a body but it doesn't hurt
-            'Content-Type': 'application/json',
-            'User-Agent': user_agent,
-            }
-        
+            "Content-Type": "application/json",
+            "User-Agent": user_agent,
+        }
+
         if api_key:
             # If we have an API key we need to set the auth header
-            self.headers['API-Key'] = api_key
+            self.headers["API-Key"] = api_key
 
         # Create a session object using our custom session function
         self.session = urlscan_session(retries=retries, backoff=backoff)
 
-    def execute(self, method, url, payload=None, params=None):
-
+    def execute(
+        self,
+        method: str,
+        url: str,
+        payload: Optional[dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
+    ) -> Optional[requests.Response]:
         """
         The base function for making requests to the urlscan.io API
-        
+
         If you are providing a payload it should be a dictionary that can be converted to JSON
         """
 
-        if payload and type(payload) != dict:
-            raise ValueError('Payload must be a dictionary')
-        
-        if payload:
-            # We need to convert the payload to JSON
-            try:
-                payload = json.dumps(payload)
-            except TypeError as e:
-                raise UrlscanInvalidPayload(f'Failed to convert payload to JSON: {e}')
-        
-        if params and type(params) != dict:
-            raise ValueError('Params must be a dictionary')
-       
+        if payload is not None and not isinstance(payload, dict):
+            raise ValueError("Payload must be a dictionary")
+
+        if params is not None and not isinstance(params, dict):
+            raise ValueError("Params must be a dictionary")
+
         with self.session as urlscan_request:
             # Ok try and excecute the request
             try:
@@ -130,67 +136,59 @@ class BaseUrlscan:
                     method=method,
                     url=url,
                     headers=self.headers,
-                    data=payload,
+                    json=payload,
                     params=params,
                 )
             except requests.RequestException as e:
-                logger.error(f'Request of {url} failed with the following error: {e}')
+                logger.error(f"Request of {url} failed with the following error: {e}")
                 # Set the response to None
                 return None
-            
-            
+
             return response
 
-    def get_quotas(self):
-
+    def get_quotas(self) -> Optional[requests.Response]:
         """
         Get the quota information for user and team (if appropiate) of the current API key
         """
 
-        return self.execute('GET', self.QUOTA_URL)
+        return self.execute("GET", self.QUOTA_URL)
 
-    def get_result(self, result_uuid):
-
+    def get_result(self, result_uuid: str | UUID) -> Optional[requests.Response]:
         """
         Pull the result of a scan from urlscan.io
         """
 
-        return self.execute('GET', f'{self.API_URL}/result/{result_uuid}')
+        return self.execute("GET", f"{self.API_URL}/result/{result_uuid}")
 
-    def get_screenshot(self, result_uuid):
-
+    def get_screenshot(self, result_uuid: str | UUID) -> Optional[requests.Response]:
         """
         Pull the screenshot of a scan from urlscan.io
         """
 
-        return self.execute('GET', f'{self.SCREENSHOT_URL}/{result_uuid}')
-    
-    def get_dom(self, result_uuid):
+        return self.execute("GET", f"{self.SCREENSHOT_URL}/{result_uuid}")
 
+    def get_dom(self, result_uuid: str | UUID) -> Optional[requests.Response]:
         """
         Pull the DOM of a scan from urlscan.io
         """
 
-        return self.execute('GET', f'{self.DOM_URL}/{result_uuid}')
-    
-    def get_response(self, response_sha256):
-        
+        return self.execute("GET", f"{self.DOM_URL}/{result_uuid}")
+
+    def get_response(self, response_sha256: str) -> Optional[requests.Response]:
         """
         Pull the response of a specific sha256 hash from urlscan.io
         """
 
-        return self.execute('GET', f'{self.RESPONSE_URL}/{response_sha256}')
-    
-    def get_scan_countries(self):
+        return self.execute("GET", f"{self.RESPONSE_URL}/{response_sha256}")
 
+    def get_scan_countries(self) -> Optional[requests.Response]:
         """
         Get the list of available endpoint countries for scanning from
         """
 
-        return self.execute('GET', f'{self.API_URL}/availableCountries/')
-    
-    def post_scan(self, payload):
+        return self.execute("GET", f"{self.API_URL}/availableCountries/")
 
+    def post_scan(self, payload: dict[str, Any]) -> Optional[requests.Response]:
         """
         Submit a new scan to urlscan.io. The payload should be a dictionary that can be converted to JSON
 
@@ -207,23 +205,24 @@ class BaseUrlscan:
         """
 
         # Perform some very basic validation
-        if type(payload) != dict:
-            raise ValueError('Payload must be a dictionary')
-        
+        if not isinstance(payload, dict):
+            raise ValueError("Payload must be a dictionary")
+
         # You need to provide a url to scan
-        if 'url' not in payload:
-            raise ValueError('Payload must contain a URL to scan')
-        
+        if "url" not in payload:
+            raise ValueError("Payload must contain a URL to scan")
+
         # Visibility must be one of the valid visibilities
-        if visibility := payload.get('visibility'):
-            if visibility not in self.VISIBILITIES:
-                raise ValueError(f'Visibility must be one of {self.VISIBILITIES}')
+        visibility = payload.get("visibility")
+        if visibility is not None and visibility not in self.VISIBILITIES:
+            raise ValueError(f"Visibility must be one of {self.VISIBILITIES}")
 
         # Run the request
-        return self.execute('POST', f'{self.API_URL}/scan/', payload=payload)
-    
-    def get_search(self, params):
+        return self.execute("POST", f"{self.API_URL}/scan/", payload=payload)
 
+    def get_search(
+        self, params: dict[str, Any] = dict()
+    ) -> Optional[requests.Response]:
         """
         Submit a search query to urlscan.io. The params should be a dictionary. Only the q (query) field is mandatory
 
@@ -235,14 +234,12 @@ class BaseUrlscan:
 
         Additional fields are available for pro accounts - see https://pro.urlscan.io/help/apis
         """
-        
+
         # Perform some very basic validation
-        if type(params) != dict:
-            raise ValueError('Params must be a dictionary')
-        
-        if 'q' not in params:
-            raise ValueError('Params must contain a query to search for')
+        if not isinstance(params, dict):
+            raise ValueError("Params must be a dictionary")
 
-        return self.execute('GET', f'{self.API_URL}/search/', params=params)
-    
+        if "q" not in params:
+            raise ValueError("Params must contain a query to search for")
 
+        return self.execute("GET", f"{self.API_URL}/search/", params=params)
